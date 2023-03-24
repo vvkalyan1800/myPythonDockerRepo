@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "azurecluster-bf69"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "azurecluster-bf69"
+  template:
+    metadata:
+      labels:
+        app: "azurecluster-bf69"
+    spec:
+      containers:
+        - name: "azurecluster-bf69"
+          image: "productstore.azurecr.io/azurecluster"
+          ports:
+          - containerPort: 5000
