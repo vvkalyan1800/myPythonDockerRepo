@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: productstore.azurecr.io
+        username: ${{ secrets.acr_productstore_username }}
+        password: ${{ secrets.acr_productstore_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/" -f  "Dockerfile" -t productstore.azurecr.io/azurecluster:${{ github.sha }} --label dockerfile-path=Dockerfile
+        docker push productstore.azurecr.io/azurecluster:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_azurecluster_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep azurecluster98fc | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace azurecluster98fc`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: azurecluster98fc
+        container-registry-url: productstore.azurecr.io
+        container-registry-username: ${{ secrets.acr_productstore_username }}
+        container-registry-password: ${{ secrets.acr_productstore_password }}
+        secret-name: azureclusterdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: azurecluster98fc
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          productstore.azurecr.io/azurecluster:${{ github.sha }}
+        imagepullsecrets: |
+          azureclusterdockerauth
